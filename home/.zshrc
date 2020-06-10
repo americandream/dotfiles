@@ -36,12 +36,8 @@ fi
 
 if [[ $(uname) -eq "Linux" ]]; then
     alias pbcopy="xclip -sel clip"
+    export JAVA_HOME=/export/apps/jdk/JDK-1_8_0_172
 fi
-
-alias findrbs=/home/jgilanfa/src/lms-productivity-analysis-tools/build/lms-productivity-analysis-tools/deployable/bin/find_rbs
-
-
-export JAVA_HOME=/export/apps/jdk/JDK-1_8_0_121
 
 source $HOME/.homesick/repos/homeshick/homeshick.sh
 
@@ -116,48 +112,5 @@ function restli_batch_patch() {
   jq '{patch .}' | restli_post -H "X-RestLi-Method: batch_partial_update" "$@"
 }
 
-# request fast access to a single resource, don't use this, use request_fast_access
-function request_single_fast_access() {
-  local current_acls="$1"
-  local resource="$2"
-  local d2Endpoint="$3"
-
-  if [[ "$current_acls" != *"$resource"* ]]; then
-    acl-tool fast_dv_access create --actor $USER --resource-urn "urn:li:restli:$resource" 1>/dev/null 2>/dev/null
-  fi
-
-  local got_access="false"
-  for i in {1..20}; do
-    if [[ "$(restli_get -I -w "%{http_code}" -o /dev/null "d2://$resource/1")" == "403" ]]; then
-      echo "Waiting for fast access to $resource to propagate, trying again in 30seconds"
-      sleep 30
-    else
-      got_access="true"
-      echo "$(green Fast access to $resource propagated.)"
-      break
-    fi
-  done
-  if [[ "$got_access" == "false" ]]; then
-    warning "Fast access to $resource not verified"
-  fi
-}
-
-# requests fast access to  a set of restli urns + d2 endpoints
-# and verify fast access has propagated.
-# uscp-backend/activityViews activityViewsBackend, tscp-admin-core/adCreativesV2 adCreativesV2"
-function request_fast_access() {
-  echo "Making a dummy request for datavault credentials"
-  restli_get -I -o /dev/null d2://ugcPosts/1
-  tput cuu1
-  local current_acls=$(acl-tool fast_dv_access find --actor "$USER" 2>/dev/null | grep urn:li:restli | cut -f 2 -d '|' | tr -d '\n' | tr -d ' ')
-
-  local commands=""
-  IFS=',' read -a single_fa <<< "$@"
-  for i in "${single_fa[@]}"; do
-    commands="$commands request_single_fast_access $current_acls $i\n"
-  done
-
-  printf "$commands" | parallel --no-notice
-}
 export VOLTA_HOME="/Users/jgilanfa/.volta"
 grep --silent "$VOLTA_HOME/bin" <<< $PATH || export PATH="$VOLTA_HOME/bin:$PATH"
